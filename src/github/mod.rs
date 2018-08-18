@@ -27,21 +27,13 @@ use prelude::*;
 
 static WANTED_LANG: &'static str = "Rust";
 
-// Start around the time when rust-lang/rust was created
-// There is no point in looking for rust repos before then
-static STARTING_ID: usize = 724_000;
-
 pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
     info!("started scraping for GitHub repositories");
 
     let gh = api::GitHubApi::new(config);
 
     let mut to_load = Vec::with_capacity(200);
-    let mut last_id = if let Some(id) = data.get_last_id("github")? {
-        id
-    } else {
-        STARTING_ID
-    };
+    let mut last_id = data.get_last_id("github")?.unwrap_or(0);
 
     loop {
         debug!("scraping 100 repositories from the REST API");
