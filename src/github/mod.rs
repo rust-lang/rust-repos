@@ -64,7 +64,7 @@ pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
             let cutoff = to_load.len() - 100;
             for repo in gh.load_repositories(&to_load[cutoff..])? {
                 if let Some(repo) = repo {
-                    if let Some(lang) = &repo.primary_language {
+                    for lang in repo.languages.nodes.iter().filter_map(|l| l.as_ref()) {
                         if lang.name == WANTED_LANG {
                             add_repo(&data, &repo, &gh)?;
                         }

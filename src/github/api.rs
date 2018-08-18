@@ -35,8 +35,10 @@ query($ids: [ID!]!) {
             defaultBranchRef {
                 name
             }
-            primaryLanguage {
-                name
+            languages(first: 100, orderBy: { field: SIZE, direction: DESC }) {
+                nodes {
+                    name
+                }
             }
         }
     }
@@ -211,7 +213,12 @@ pub struct GraphRepository {
     pub id: String,
     pub name_with_owner: String,
     pub default_branch_ref: Option<GraphRef>,
-    pub primary_language: Option<GraphLanguage>,
+    pub languages: GraphLanguages,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GraphLanguages {
+    pub nodes: Vec<Option<GraphLanguage>>,
 }
 
 #[derive(Debug, Deserialize)]
