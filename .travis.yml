@@ -1,0 +1,37 @@
+language: rust
+cache: cargo
+
+env:
+  global:
+    - RUSTFLAGS=-Dwarnings
+
+matrix:
+  include:
+    # Tests on all the channels
+    - env: TASK=test
+      rust: stable
+    - env: TASK=test
+      rust: beta
+    - env: TASK=test
+      rust: nightly
+
+    - env: TASK=lint
+      rust: beta
+
+  # Don't block CI if a nightly is faulty
+  fast_finish: true
+  allow_failures:
+    - rust: nightly
+
+before_script: |
+  if [[ $TASK = "lint" ]]; then
+      rustup component add rustfmt-preview
+      rustup component add clippy-preview
+  fi
+
+script: |
+  if [[ $TASK = "lint" ]]; then
+      cargo fmt -- --check && cargo clippy
+  elif [[ $TASK = "test" ]]; then
+    cargo build --release && cargo test --release
+  fi
