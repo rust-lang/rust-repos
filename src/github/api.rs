@@ -24,7 +24,7 @@ use reqwest::{header, Client, Method, RequestBuilder, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Cow;
 
-static USER_AGENT: &'static str = "rust-ops/rust-repos";
+static USER_AGENT: &'static str = "rust-repos (https://github.com/pietroalbini/rust-repos)";
 
 static GRAPHQL_QUERY_REPOSITORIES: &'static str = "
 query($ids: [ID!]!) {
