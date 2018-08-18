@@ -7,6 +7,9 @@ env:
 
 matrix:
   include:
+    - env: TASK=lint
+      rust: beta
+
     # Tests on all the channels
     - env: TASK=test
       rust: stable
@@ -14,9 +17,6 @@ matrix:
       rust: beta
     - env: TASK=test
       rust: nightly
-
-    - env: TASK=lint
-      rust: beta
 
   # Don't block CI if a nightly is faulty
   fast_finish: true
@@ -35,3 +35,6 @@ script: |
   elif [[ $TASK = "test" ]]; then
     cargo build --release && cargo test --release
   fi
+
+notifications:
+  email: false
