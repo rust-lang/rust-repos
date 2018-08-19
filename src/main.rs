@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 extern crate csv;
+extern crate ctrlc;
 extern crate env_logger;
 #[macro_use]
 extern crate failure;
@@ -40,6 +41,10 @@ mod utils;
 use config::Config;
 use prelude::*;
 use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::Instant;
 
 fn app() -> Fallible<()> {
@@ -72,7 +77,14 @@ fn app() -> Fallible<()> {
 
     let mut data = data::Data::new(&config);
 
-    github::scrape(&mut data, &config)?;
+    let should_stop = Arc::new(AtomicBool::new(false));
+    let stop = should_stop.clone();
+    ctrlc::set_handler(move || {
+        info!("received Ctrl+C, terminating...");
+        stop.store(true, Ordering::SeqCst);
+    })?;
+
+    github::scrape(&mut data, &config, &should_stop)?;
 
     Ok(())
 }

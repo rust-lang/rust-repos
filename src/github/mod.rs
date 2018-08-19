@@ -24,10 +24,11 @@ use config::Config;
 use data::{Data, Repo};
 use github::api::{GitHubApi, GraphRepository};
 use prelude::*;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 static WANTED_LANG: &'static str = "Rust";
 
-pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
+pub fn scrape(data: &mut Data, config: &Config, should_stop: &AtomicBool) -> Fallible<()> {
     info!("started scraping for GitHub repositories");
 
     let gh = api::GitHubApi::new(config);
@@ -40,7 +41,7 @@ pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
 
         // Load all the non-fork repositories in the to_load vector
         let mut repos = gh.scrape_repositories(last_id)?;
-        let finished = repos.len() < 100;
+        let finished = repos.len() < 100 || should_stop.load(Ordering::SeqCst);
         for repo in repos.drain(..) {
             if repo.fork {
                 continue;
@@ -51,22 +52,30 @@ pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
         }
 
         if to_load.len() >= 100 || finished {
-            debug!("collected 100 non-fork repositories, loading them");
+            while (finished && !to_load.is_empty()) || (!finished && to_load.len() >= 100) {
+                let (to_collect, cutoff) = if to_load.len() >= 100 {
+                    (100, to_load.len() - 100)
+                } else {
+                    (to_load.len(), 0)
+                };
 
-            // If those are the last repos load all of them
-            let cutoff = if finished { 0 } else { to_load.len() - 100 };
+                debug!(
+                    "collected {} non-fork repositories, loading them",
+                    to_collect
+                );
 
-            for repo in gh.load_repositories(&to_load[cutoff..])? {
-                if let Some(repo) = repo {
-                    for lang in repo.languages.nodes.iter().filter_map(|l| l.as_ref()) {
-                        if lang.name == WANTED_LANG {
-                            add_repo(&data, &repo, &gh)?;
+                for repo in gh.load_repositories(&to_load[cutoff..])? {
+                    if let Some(repo) = repo {
+                        for lang in repo.languages.nodes.iter().filter_map(|l| l.as_ref()) {
+                            if lang.name == WANTED_LANG {
+                                add_repo(&data, &repo, &gh)?;
+                            }
                         }
                     }
                 }
-            }
 
-            to_load.truncate(cutoff);
+                to_load.truncate(cutoff);
+            }
         }
 
         data.set_last_id("github", last_id)?;
