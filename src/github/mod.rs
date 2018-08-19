@@ -47,7 +47,6 @@ pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
 
             to_load.push(repo.node_id);
             last_id = repo.id;
-            data.set_last_id("github", repo.id)?;
         }
 
         if to_load.len() >= 100 {
@@ -66,6 +65,8 @@ pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
 
             to_load.truncate(cutoff);
         }
+
+        data.set_last_id("github", last_id)?;
     }
 }
 
