@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+extern crate crossbeam_channel;
+extern crate crossbeam_utils;
 extern crate csv;
 extern crate ctrlc;
 extern crate env_logger;
@@ -75,7 +77,7 @@ fn app() -> Fallible<()> {
         data_dir,
     };
 
-    let mut data = data::Data::new(&config);
+    let data = data::Data::new(&config);
 
     let should_stop = Arc::new(AtomicBool::new(false));
     let stop = should_stop.clone();
@@ -84,7 +86,7 @@ fn app() -> Fallible<()> {
         stop.store(true, Ordering::SeqCst);
     })?;
 
-    github::scrape(&mut data, &config, &should_stop)?;
+    github::scrape(&data, &config, &should_stop)?;
 
     Ok(())
 }

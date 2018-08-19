@@ -26,3 +26,9 @@ pub fn log_error(err: &Error) {
         error!("  caused by: {}", cause);
     }
 }
+
+pub fn wrap_thread<F: FnOnce() -> Fallible<()>>(f: F) {
+    if let Err(err) = f() {
+        log_error(&err);
+    }
+}
