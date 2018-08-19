@@ -168,8 +168,7 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
             }
 
             // Avoid hammering GitHub too much
-            let sleep = Duration::from_secs(1) - start.elapsed();
-            if sleep > Duration::from_secs(0) {
+            if let Some(sleep) = Duration::from_secs(1).checked_sub(start.elapsed()) {
                 ::std::thread::sleep(sleep);
             }
         }
