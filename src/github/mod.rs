@@ -27,6 +27,7 @@ use data::{Data, Repo};
 use github::api::{GitHubApi, GraphRepository};
 use prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 use utils::wrap_thread;
 
 static WANTED_LANG: &'static str = "Rust";
@@ -138,20 +139,13 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
 
         let add_repo_thread =
             scope.spawn(|| wrap_thread(|| add_repo_thread(&data, &gh, add_repo_recv)));
-
-        // Two threads are created because the load operation is slower
-        let mut load_threads = Vec::new();
-        for _ in 0..2 {
-            let add_repo = add_repo.clone();
-            let load_recv = load_recv.clone();
-            load_threads.push(
-                scope.spawn(|| wrap_thread(|| load_thread(&gh, add_repo, load_recv)))
-            );
-        }
+        let load_thread = scope.spawn(|| wrap_thread(|| load_thread(&gh, add_repo, load_recv)));
 
         let mut last_id = data.get_last_id("github")?.unwrap_or(0);
 
         loop {
+            let start = Instant::now();
+
             debug!("scraping 100 repositories from the REST API");
 
             // Load all the non-fork repositories in the to_load vector
@@ -169,16 +163,18 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
             data.set_last_id("github", last_id)?;
 
             if finished {
-                for _ in 0..load_threads.len() {
-                    load.send(ThreadInput::Finished);
-                }
+                load.send(ThreadInput::Finished);
                 break;
+            }
+
+            // Avoid hammering GitHub too much
+            let sleep = Duration::from_secs(1) - start.elapsed();
+            if sleep > Duration::from_secs(0) {
+                ::std::thread::sleep(sleep);
             }
         }
 
-        for thread in load_threads.drain(..) {
-            thread.join().unwrap();
-        }
+        load_thread.join().unwrap();
         add_repo_thread.join().unwrap();
 
         info!("finished scraping for GitHub repositories");
