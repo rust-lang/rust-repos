@@ -40,6 +40,7 @@ pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
 
         // Load all the non-fork repositories in the to_load vector
         let mut repos = gh.scrape_repositories(last_id)?;
+        let finished = repos.len() < 100;
         for repo in repos.drain(..) {
             if repo.fork {
                 continue;
@@ -49,10 +50,12 @@ pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
             last_id = repo.id;
         }
 
-        if to_load.len() >= 100 {
+        if to_load.len() >= 100 || finished {
             debug!("collected 100 non-fork repositories, loading them");
 
-            let cutoff = to_load.len() - 100;
+            // If those are the last repos load all of them
+            let cutoff = if finished { 0 } else { to_load.len() - 100 };
+
             for repo in gh.load_repositories(&to_load[cutoff..])? {
                 if let Some(repo) = repo {
                     for lang in repo.languages.nodes.iter().filter_map(|l| l.as_ref()) {
@@ -67,7 +70,15 @@ pub fn scrape(data: &mut Data, config: &Config) -> Fallible<()> {
         }
 
         data.set_last_id("github", last_id)?;
+
+        if finished {
+            break;
+        }
     }
+
+    info!("finished scraping for GitHub repositories");
+
+    Ok(())
 }
 
 fn add_repo(data: &Data, repo: &GraphRepository, api: &GitHubApi) -> Fallible<()> {
