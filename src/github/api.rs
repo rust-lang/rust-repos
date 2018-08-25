@@ -78,7 +78,7 @@ impl<'conf> GitHubApi<'conf> {
         req
     }
 
-    fn graphql<T: DeserializeOwned, V: Serialize>(&self, query: &str, variables: V) -> Fallible<T> {
+    fn graphql<T: DeserializeOwned + Default, V: Serialize>(&self, query: &str, variables: V) -> Fallible<T> {
         let resp: GraphResponse<T> = self
             .build_request(Method::Post, "graphql")
             .json(&json!({
@@ -107,7 +107,8 @@ impl<'conf> GitHubApi<'conf> {
                 .context("GitHub GraphQL call failed")
                 .into());
         } else {
-            bail!("neither data or errors present in the GraphQL query");
+            warn!("neither data or errors present in the GraphQL query");
+            Ok(T::default())
         }
     }
 
@@ -140,8 +141,8 @@ impl<'conf> GitHubApi<'conf> {
         }),
         )?;
 
-        assert_eq!(
-            data.rate_limit.cost, 1,
+        assert!(
+            data.rate_limit.cost <= 1,
             "load repositories query too costly"
         );
         Ok(data.nodes)
@@ -195,12 +196,12 @@ struct GraphResponse<T> {
     errors: Option<Vec<GitHubError>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct GraphRateLimit {
     cost: u16,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct GraphRepositories {
     nodes: Vec<Option<GraphRepository>>,
