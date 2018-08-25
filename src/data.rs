@@ -46,6 +46,8 @@ pub struct Repo {
 pub struct Data {
     base_dir: PathBuf,
 
+    csv_write_lock: Arc<Mutex<()>>,
+
     state_path: PathBuf,
     state_cache: Arc<Mutex<Option<State>>>,
 }
@@ -54,6 +56,8 @@ impl Data {
     pub fn new(config: &Config) -> Self {
         Data {
             base_dir: config.data_dir.clone(),
+
+            csv_write_lock: Arc::new(Mutex::new(())),
 
             state_path: config.data_dir.join("state.json"),
             state_cache: Arc::new(Mutex::new(None)),
@@ -93,6 +97,9 @@ impl Data {
     }
 
     pub fn store_repo(&self, platform: &str, repo: Repo) -> Fallible<()> {
+        // Ensure only one thread can write to CSV files at once
+        let _lock = self.csv_write_lock.lock().unwrap();
+
         let file = self.base_dir.join(format!("{}.csv", platform));
 
         // Create the new file or append to it

@@ -21,10 +21,9 @@
 mod api;
 
 use config::Config;
-use crossbeam_channel::{self, Receiver, Sender};
 use crossbeam_utils::thread::scope;
 use data::{Data, Repo};
-use github::api::{GitHubApi, GraphRepository};
+use github::api::GitHubApi;
 use prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -32,77 +31,24 @@ use utils::wrap_thread;
 
 static WANTED_LANG: &'static str = "Rust";
 
-enum ThreadInput<T> {
-    Data(T),
-    Finished,
-}
+fn load_thread(api: &GitHubApi, data: &Data, to_load: Vec<String>) -> Fallible<()> {
+    debug!(
+        "collected {} non-fork repositories, loading them",
+        to_load.len()
+    );
 
-fn load_thread(
-    api: &GitHubApi,
-    add_repo: Sender<ThreadInput<GraphRepository>>,
-    recv: Receiver<ThreadInput<String>>,
-) -> Fallible<()> {
-    let mut to_load = Vec::with_capacity(200);
-    let mut finished = false;
-
-    for input in recv {
-        match input {
-            ThreadInput::Data(repo) => to_load.push(repo),
-            ThreadInput::Finished => finished = true,
-        }
-
-        while to_load.len() >= 100 || (finished && !to_load.is_empty()) {
-            let (to_collect, cutoff) = if to_load.len() >= 100 {
-                (100, to_load.len() - 100)
-            } else {
-                (to_load.len(), 0)
-            };
-
-            debug!(
-                "collected {} non-fork repositories, loading them",
-                to_collect
-            );
-
-            let mut graph_repos = api.load_repositories(&to_load[cutoff..])?;
-            for repo in graph_repos.drain(..) {
-                if let Some(repo) = repo {
-                    let mut found = false;
-                    for lang in repo.languages.nodes.iter().filter_map(|l| l.as_ref()) {
-                        if lang.name == WANTED_LANG {
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if found {
-                        add_repo.send(ThreadInput::Data(repo));
-                    }
+    let mut graph_repos = api.load_repositories(&to_load)?;
+    for repo in graph_repos.drain(..) {
+        if let Some(repo) = repo {
+            let mut found = false;
+            for lang in repo.languages.nodes.iter().filter_map(|l| l.as_ref()) {
+                if lang.name == WANTED_LANG {
+                    found = true;
+                    break;
                 }
             }
 
-            to_load.truncate(cutoff);
-        }
-
-        if finished {
-            add_repo.send(ThreadInput::Finished);
-            break;
-        }
-    }
-
-    // Applease Clippy
-    ::std::mem::drop(add_repo);
-
-    Ok(())
-}
-
-fn add_repo_thread(
-    data: &Data,
-    api: &GitHubApi,
-    recv: Receiver<ThreadInput<GraphRepository>>,
-) -> Fallible<()> {
-    for input in recv {
-        match input {
-            ThreadInput::Data(repo) => {
+            if found {
                 let has_cargo_toml = api.file_exists(&repo, "Cargo.toml")?;
                 let has_cargo_lock = api.file_exists(&repo, "Cargo.lock")?;
 
@@ -121,9 +67,11 @@ fn add_repo_thread(
                     repo.name_with_owner, has_cargo_toml, has_cargo_lock,
                 );
             }
-            ThreadInput::Finished => break,
         }
     }
+
+    // Applease Clippy
+    ::std::mem::drop(to_load);
 
     Ok(())
 }
@@ -132,15 +80,9 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
     info!("started scraping for GitHub repositories");
 
     let gh = api::GitHubApi::new(config);
+    let mut to_load = Vec::with_capacity(100);
 
-    scope(|scope| {
-        let (add_repo, add_repo_recv) = crossbeam_channel::unbounded();
-        let (load, load_recv) = crossbeam_channel::unbounded();
-
-        let add_repo_thread =
-            scope.spawn(|| wrap_thread(|| add_repo_thread(&data, &gh, add_repo_recv)));
-        let load_thread = scope.spawn(|| wrap_thread(|| load_thread(&gh, add_repo, load_recv)));
-
+    let result = scope(|scope| {
         let mut last_id = data.get_last_id("github")?.unwrap_or(0);
 
         loop {
@@ -156,14 +98,25 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
                     continue;
                 }
 
-                load.send(ThreadInput::Data(repo.node_id));
                 last_id = repo.id;
+                to_load.push(repo.node_id);
+
+                if to_load.len() == 100 {
+                    let to_load_now = to_load.clone();
+                    scope.spawn(|| wrap_thread(|| load_thread(&gh, data, to_load_now)));
+                    to_load.clear();
+                }
             }
 
             data.set_last_id("github", last_id)?;
 
             if finished {
-                load.send(ThreadInput::Finished);
+                // Ensure all the remaining repositories are loaded
+                if !to_load.is_empty() {
+                    let to_load_now = to_load.clone();
+                    scope.spawn(|| wrap_thread(|| load_thread(&gh, data, to_load_now)));
+                }
+
                 break;
             }
 
@@ -173,11 +126,9 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
             }
         }
 
-        load_thread.join().unwrap();
-        add_repo_thread.join().unwrap();
-
-        info!("finished scraping for GitHub repositories");
-
         Ok(())
-    })
+    });
+
+    info!("finished scraping for GitHub repositories");
+    result
 }
