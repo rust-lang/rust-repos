@@ -52,7 +52,7 @@ query($ids: [ID!]!) {
 
 #[derive(Fail, Debug)]
 #[fail(display = "internal github error: {:?}", _0)]
-struct InternalGitHubError(StatusCode);
+struct RetryRequest(StatusCode);
 
 trait ResponseExt {
     fn handle_errors(self) -> Fallible<Self>
@@ -67,7 +67,7 @@ impl ResponseExt for Response {
             StatusCode::InternalServerError
             | StatusCode::BadGateway
             | StatusCode::ServiceUnavailable
-            | StatusCode::GatewayTimeout => Err(InternalGitHubError(status).into()),
+            | StatusCode::GatewayTimeout => Err(RetryRequest(status).into()),
             _ => Ok(self),
         }
     }
@@ -87,14 +87,14 @@ impl<'conf> GitHubApi<'conf> {
     }
 
     fn retry<T, F: Fn() -> Fallible<T>>(&self, f: F) -> Fallible<T> {
-        let mut wait = Duration::from_secs(1);
+        let mut wait = Duration::from_secs(10);
 
         loop {
             match f() {
                 Ok(res) => return Ok(res),
                 Err(err) => {
                     let mut retry = false;
-                    if let Some(error) = err.downcast_ref::<InternalGitHubError>() {
+                    if let Some(error) = err.downcast_ref::<RetryRequest>() {
                         warn!(
                             "API call to GitHub returned status code {}, retrying in {} seconds",
                             error.0,
@@ -112,8 +112,8 @@ impl<'conf> GitHubApi<'conf> {
             ::std::thread::sleep(wait);
 
             // Stop doubling the time after a few increments, to avoid waiting too long
-            // This is still a request every ~17 minutes
-            if wait.as_secs() < 1024 {
+            // This is still a request every ~10 minutes
+            if wait.as_secs() < 640 {
                 wait *= 2;
             }
         }
@@ -135,11 +135,7 @@ impl<'conf> GitHubApi<'conf> {
         req
     }
 
-    fn graphql<T: DeserializeOwned + Default, V: Serialize>(
-        &self,
-        query: &str,
-        variables: V,
-    ) -> Fallible<T> {
+    fn graphql<T: DeserializeOwned, V: Serialize>(&self, query: &str, variables: V) -> Fallible<T> {
         self.retry(|| {
             let resp: GraphResponse<T> = self
                 .build_request(Method::Post, "graphql")
@@ -166,12 +162,20 @@ impl<'conf> GitHubApi<'conf> {
 
                 Ok(data)
             } else if let Some(mut errors) = resp.errors {
-                return Err(err_msg(errors.pop().unwrap().message)
+                Err(err_msg(errors.pop().unwrap().message)
                     .context("GitHub GraphQL call failed")
-                    .into());
+                    .into())
+            } else if let Some(message) = resp.message {
+                if message.contains("abuse") {
+                    warn!("triggered GitHub abuse detection systems");
+                    Err(RetryRequest(StatusCode::TooManyRequests).into())
+                } else {
+                    Err(err_msg(message)
+                        .context("GitHub GraphQL call failed")
+                        .into())
+                }
             } else {
-                warn!("neither data or errors present in the GraphQL query");
-                Ok(T::default())
+                Err(err_msg("empty GraphQL response"))
             }
         })
     }
@@ -188,14 +192,19 @@ impl<'conf> GitHubApi<'conf> {
                 Ok(resp.json()?)
             } else {
                 let error: GitHubError = resp.json()?;
-                Err(err_msg(error.message)
-                    .context(format!(
-                        "GitHub API call failed with status code: {}",
-                        status
-                    )).context(format!(
-                        "failed to fetch GitHub repositories since ID {}",
-                        since
-                    )).into())
+                if error.message.contains("abuse") {
+                    warn!("triggered GitHub abuse detection systems");
+                    Err(RetryRequest(StatusCode::TooManyRequests).into())
+                } else {
+                    Err(err_msg(error.message)
+                        .context(format!(
+                            "GitHub API call failed with status code: {}",
+                            status
+                        )).context(format!(
+                            "failed to fetch GitHub repositories since ID {}",
+                            since
+                        )).into())
+                }
             }
         })
     }
@@ -266,14 +275,15 @@ pub struct RestRepository {
 struct GraphResponse<T> {
     data: Option<T>,
     errors: Option<Vec<GitHubError>>,
+    message: Option<String>,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 struct GraphRateLimit {
     cost: u16,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GraphRepositories {
     nodes: Vec<Option<GraphRepository>>,
