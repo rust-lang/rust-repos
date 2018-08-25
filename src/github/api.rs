@@ -20,9 +20,10 @@
 
 use config::Config;
 use prelude::*;
-use reqwest::{header, Client, Method, RequestBuilder, StatusCode};
+use reqwest::{header, Client, Method, RequestBuilder, Response, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Cow;
+use std::time::Duration;
 
 static USER_AGENT: &'static str = "rust-repos (https://github.com/pietroalbini/rust-repos)";
 
@@ -49,6 +50,29 @@ query($ids: [ID!]!) {
 }
 ";
 
+#[derive(Fail, Debug)]
+#[fail(display = "internal github error: {:?}", _0)]
+struct InternalGitHubError(StatusCode);
+
+trait ResponseExt {
+    fn handle_errors(self) -> Fallible<Self>
+    where
+        Self: Sized;
+}
+
+impl ResponseExt for Response {
+    fn handle_errors(self) -> Fallible<Self> {
+        let status = self.status();
+        match status {
+            StatusCode::InternalServerError
+            | StatusCode::BadGateway
+            | StatusCode::ServiceUnavailable
+            | StatusCode::GatewayTimeout => Err(InternalGitHubError(status).into()),
+            _ => Ok(self),
+        }
+    }
+}
+
 pub struct GitHubApi<'conf> {
     config: &'conf Config,
     client: Client,
@@ -59,6 +83,39 @@ impl<'conf> GitHubApi<'conf> {
         GitHubApi {
             config,
             client: Client::new(),
+        }
+    }
+
+    fn retry<T, F: Fn() -> Fallible<T>>(&self, f: F) -> Fallible<T> {
+        let mut wait = Duration::from_secs(1);
+
+        loop {
+            match f() {
+                Ok(res) => return Ok(res),
+                Err(err) => {
+                    let mut retry = false;
+                    if let Some(error) = err.downcast_ref::<InternalGitHubError>() {
+                        warn!(
+                            "API call to GitHub returned status code {}, retrying in {} seconds",
+                            error.0,
+                            wait.as_secs()
+                        );
+                        retry = true;
+                    }
+
+                    if !retry {
+                        return Err(err);
+                    }
+                }
+            }
+
+            ::std::thread::sleep(wait);
+
+            // Stop doubling the time after a few increments, to avoid waiting too long
+            // This is still a request every ~17 minutes
+            if wait.as_secs() < 1024 {
+                wait *= 2;
+            }
         }
     }
 
@@ -78,59 +135,69 @@ impl<'conf> GitHubApi<'conf> {
         req
     }
 
-    fn graphql<T: DeserializeOwned + Default, V: Serialize>(&self, query: &str, variables: V) -> Fallible<T> {
-        let resp: GraphResponse<T> = self
-            .build_request(Method::Post, "graphql")
-            .json(&json!({
-                "query": query,
-                "variables": variables,
-            })).send()?
-            .json()?;
+    fn graphql<T: DeserializeOwned + Default, V: Serialize>(
+        &self,
+        query: &str,
+        variables: V,
+    ) -> Fallible<T> {
+        self.retry(|| {
+            let resp: GraphResponse<T> = self
+                .build_request(Method::Post, "graphql")
+                .json(&json!({
+                    "query": query,
+                    "variables": variables,
+                })).send()?
+                .handle_errors()?
+                .json()?;
 
-        if let Some(data) = resp.data {
-            if let Some(errors) = resp.errors {
-                for error in errors {
-                    if let Some(ref type_) = error.type_ {
-                        if type_ == "NOT_FOUND" {
-                            debug!("ignored GraphQL error: {}", error.message);
-                            continue;
+            if let Some(data) = resp.data {
+                if let Some(errors) = resp.errors {
+                    for error in errors {
+                        if let Some(ref type_) = error.type_ {
+                            if type_ == "NOT_FOUND" {
+                                debug!("ignored GraphQL error: {}", error.message);
+                                continue;
+                            }
                         }
+
+                        warn!("non-fatal GraphQL error: {}", error.message);
                     }
-
-                    warn!("non-fatal GraphQL error: {}", error.message);
                 }
-            }
 
-            Ok(data)
-        } else if let Some(mut errors) = resp.errors {
-            return Err(err_msg(errors.pop().unwrap().message)
-                .context("GitHub GraphQL call failed")
-                .into());
-        } else {
-            warn!("neither data or errors present in the GraphQL query");
-            Ok(T::default())
-        }
+                Ok(data)
+            } else if let Some(mut errors) = resp.errors {
+                return Err(err_msg(errors.pop().unwrap().message)
+                    .context("GitHub GraphQL call failed")
+                    .into());
+            } else {
+                warn!("neither data or errors present in the GraphQL query");
+                Ok(T::default())
+            }
+        })
     }
 
     pub fn scrape_repositories(&self, since: usize) -> Fallible<Vec<RestRepository>> {
-        let mut resp = self
-            .build_request(Method::Get, &format!("repositories?since={}", since))
-            .send()?;
+        self.retry(|| {
+            let mut resp = self
+                .build_request(Method::Get, &format!("repositories?since={}", since))
+                .send()?
+                .handle_errors()?;
 
-        let status = resp.status();
-        if status == StatusCode::Ok {
-            Ok(resp.json()?)
-        } else {
-            let error: GitHubError = resp.json()?;
-            Err(err_msg(error.message)
-                .context(format!(
-                    "GitHub API call failed with status code: {}",
-                    status
-                )).context(format!(
-                    "failed to fetch GitHub repositories since ID {}",
-                    since
-                )).into())
-        }
+            let status = resp.status();
+            if status == StatusCode::Ok {
+                Ok(resp.json()?)
+            } else {
+                let error: GitHubError = resp.json()?;
+                Err(err_msg(error.message)
+                    .context(format!(
+                        "GitHub API call failed with status code: {}",
+                        status
+                    )).context(format!(
+                        "failed to fetch GitHub repositories since ID {}",
+                        since
+                    )).into())
+            }
+        })
     }
 
     pub fn load_repositories(&self, node_ids: &[String]) -> Fallible<Vec<Option<GraphRepository>>> {
@@ -160,18 +227,23 @@ impl<'conf> GitHubApi<'conf> {
             path,
         );
 
-        let resp = self.build_request(Method::Get, &url).send()?;
-        match resp.status() {
-            StatusCode::Ok => Ok(true),
-            StatusCode::NotFound => Ok(false),
-            status => Err(
-                err_msg(format!("GitHub API returned status code {}", status))
-                    .context(format!(
-                        "failed to fetch file {} from repo {}",
-                        path, repo.name_with_owner,
-                    )).into(),
-            ),
-        }
+        self.retry(|| {
+            let resp = self
+                .build_request(Method::Get, &url)
+                .send()?
+                .handle_errors()?;
+            match resp.status() {
+                StatusCode::Ok => Ok(true),
+                StatusCode::NotFound => Ok(false),
+                status => Err(
+                    err_msg(format!("GitHub API returned status code {}", status))
+                        .context(format!(
+                            "failed to fetch file {} from repo {}",
+                            path, repo.name_with_owner,
+                        )).into(),
+                ),
+            }
+        })
     }
 }
 
