@@ -23,6 +23,10 @@ use prelude::*;
 use reqwest::{header, Client, Method, RequestBuilder, Response, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Cow;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::Duration;
 
 static USER_AGENT: &'static str = "rust-repos (https://github.com/pietroalbini/rust-repos)";
@@ -76,6 +80,7 @@ impl ResponseExt for Response {
 pub struct GitHubApi<'conf> {
     config: &'conf Config,
     client: Client,
+    slow_down: Arc<AtomicBool>,
 }
 
 impl<'conf> GitHubApi<'conf> {
@@ -83,6 +88,7 @@ impl<'conf> GitHubApi<'conf> {
         GitHubApi {
             config,
             client: Client::new(),
+            slow_down: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -168,6 +174,7 @@ impl<'conf> GitHubApi<'conf> {
             } else if let Some(message) = resp.message {
                 if message.contains("abuse") {
                     warn!("triggered GitHub abuse detection systems");
+                    self.slow_down.store(true, Ordering::SeqCst);
                     Err(RetryRequest(StatusCode::TooManyRequests).into())
                 } else {
                     Err(err_msg(message)
@@ -194,6 +201,7 @@ impl<'conf> GitHubApi<'conf> {
                 let error: GitHubError = resp.json()?;
                 if error.message.contains("abuse") {
                     warn!("triggered GitHub abuse detection systems");
+                    self.slow_down.store(true, Ordering::SeqCst);
                     Err(RetryRequest(StatusCode::TooManyRequests).into())
                 } else {
                     Err(err_msg(error.message)
@@ -253,6 +261,10 @@ impl<'conf> GitHubApi<'conf> {
                 ),
             }
         })
+    }
+
+    pub fn should_slow_down(&self) -> bool {
+        self.slow_down.swap(false, Ordering::SeqCst)
     }
 }
 
