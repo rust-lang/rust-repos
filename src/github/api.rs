@@ -94,6 +94,7 @@ impl<'conf> GitHubApi<'conf> {
 
     fn retry<T, F: Fn() -> Fallible<T>>(&self, f: F) -> Fallible<T> {
         let mut wait = Duration::from_secs(10);
+        let mut first = true;
 
         loop {
             match f() {
@@ -115,6 +116,11 @@ impl<'conf> GitHubApi<'conf> {
                 }
             }
 
+            // Slow down only once per API call
+            if first {
+                self.slow_down.store(true, Ordering::SeqCst);
+            }
+
             ::std::thread::sleep(wait);
 
             // Stop doubling the time after a few increments, to avoid waiting too long
@@ -122,6 +128,8 @@ impl<'conf> GitHubApi<'conf> {
             if wait.as_secs() < 640 {
                 wait *= 2;
             }
+
+            first = false;
         }
     }
 
@@ -174,7 +182,6 @@ impl<'conf> GitHubApi<'conf> {
             } else if let Some(message) = resp.message {
                 if message.contains("abuse") {
                     warn!("triggered GitHub abuse detection systems");
-                    self.slow_down.store(true, Ordering::SeqCst);
                     Err(RetryRequest(StatusCode::TooManyRequests).into())
                 } else {
                     Err(err_msg(message)
@@ -201,7 +208,6 @@ impl<'conf> GitHubApi<'conf> {
                 let error: GitHubError = resp.json()?;
                 if error.message.contains("abuse") {
                     warn!("triggered GitHub abuse detection systems");
-                    self.slow_down.store(true, Ordering::SeqCst);
                     Err(RetryRequest(StatusCode::TooManyRequests).into())
                 } else {
                     Err(err_msg(error.message)
