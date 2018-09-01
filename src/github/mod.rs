@@ -100,17 +100,19 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
             let mut repos = gh.scrape_repositories(last_id)?;
             let finished = repos.len() < 100 || should_stop.load(Ordering::SeqCst);
             for repo in repos.drain(..) {
-                last_id = repo.id;
-                if repo.fork {
-                    continue;
-                }
+                if let Some(repo) = repo {
+                    last_id = repo.id;
+                    if repo.fork {
+                        continue;
+                    }
 
-                to_load.push(repo.node_id);
+                    to_load.push(repo.node_id);
 
-                if to_load.len() == 100 {
-                    let to_load_now = to_load.clone();
-                    scope.spawn(|| wrap_thread(|| load_thread(&gh, data, to_load_now)));
-                    to_load.clear();
+                    if to_load.len() == 100 {
+                        let to_load_now = to_load.clone();
+                        scope.spawn(|| wrap_thread(|| load_thread(&gh, data, to_load_now)));
+                        to_load.clear();
+                    }
                 }
             }
 

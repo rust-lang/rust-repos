@@ -194,7 +194,7 @@ impl<'conf> GitHubApi<'conf> {
         })
     }
 
-    pub fn scrape_repositories(&self, since: usize) -> Fallible<Vec<RestRepository>> {
+    pub fn scrape_repositories(&self, since: usize) -> Fallible<Vec<Option<RestRepository>>> {
         self.retry(|| {
             let mut resp = self
                 .build_request(Method::Get, &format!("repositories?since={}", since))
