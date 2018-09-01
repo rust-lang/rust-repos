@@ -86,10 +86,10 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
         let mut last_id = data.get_last_id("github")?.unwrap_or(0);
 
         loop {
-            // Wait 5 minutes if GitHub is slowing us down
+            // Wait 2 minutes if GitHub is slowing us down
             if gh.should_slow_down() {
                 warn!("slowing down the scraping (5 minutes pause)");
-                ::std::thread::sleep(Duration::from_secs(300));
+                ::std::thread::sleep(Duration::from_secs(120));
             }
 
             let start = Instant::now();
