@@ -88,7 +88,7 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
         loop {
             // Wait 2 minutes if GitHub is slowing us down
             if gh.should_slow_down() {
-                warn!("slowing down the scraping (5 minutes pause)");
+                warn!("slowing down the scraping (2 minutes pause)");
                 ::std::thread::sleep(Duration::from_secs(120));
             }
 
