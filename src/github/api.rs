@@ -24,7 +24,7 @@ use reqwest::{header, Client, Method, RequestBuilder, Response, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Cow;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc,
 };
 use std::time::Duration;
@@ -81,6 +81,7 @@ pub struct GitHubApi<'conf> {
     config: &'conf Config,
     client: Client,
     slow_down: Arc<AtomicBool>,
+    concurrent_requests: Arc<AtomicUsize>,
 }
 
 impl<'conf> GitHubApi<'conf> {
@@ -89,6 +90,7 @@ impl<'conf> GitHubApi<'conf> {
             config,
             client: Client::new(),
             slow_down: Arc::new(AtomicBool::new(false)),
+            concurrent_requests: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -97,7 +99,12 @@ impl<'conf> GitHubApi<'conf> {
         let mut first = true;
 
         loop {
-            match f() {
+            let concurrent = self.concurrent_requests.fetch_add(1, Ordering::SeqCst);
+            debug!("currently making {} concurrent requests to the GitHub API", concurrent + 1);
+            let res = f();
+            self.concurrent_requests.fetch_sub(1, Ordering::SeqCst);
+
+            match res {
                 Ok(res) => return Ok(res),
                 Err(err) => {
                     let mut retry = false;
