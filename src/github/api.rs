@@ -100,7 +100,10 @@ impl<'conf> GitHubApi<'conf> {
 
         loop {
             let concurrent = self.concurrent_requests.fetch_add(1, Ordering::SeqCst);
-            debug!("currently making {} concurrent requests to the GitHub API", concurrent + 1);
+            debug!(
+                "currently making {} concurrent requests to the GitHub API",
+                concurrent + 1
+            );
             let res = f();
             self.concurrent_requests.fetch_sub(1, Ordering::SeqCst);
 
