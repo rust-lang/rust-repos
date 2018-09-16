@@ -29,7 +29,7 @@ use std::sync::{
 };
 use std::time::Duration;
 
-static USER_AGENT: &'static str = "rust-repos (https://github.com/pietroalbini/rust-repos)";
+static USER_AGENT: &'static str = "rust-repos (https://github.com/rust-ops/rust-repos)";
 
 static GRAPHQL_QUERY_REPOSITORIES: &'static str = "
 query($ids: [ID!]!) {
