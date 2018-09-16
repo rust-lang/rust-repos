@@ -5,6 +5,10 @@ env:
   global:
     - RUSTFLAGS=-Dwarnings
 
+branches:
+  only:
+    - master
+
 matrix:
   include:
     - env: TASK=lint
