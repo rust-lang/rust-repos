@@ -68,10 +68,10 @@ impl ResponseExt for Response {
     fn handle_errors(self) -> Fallible<Self> {
         let status = self.status();
         match status {
-            StatusCode::InternalServerError
-            | StatusCode::BadGateway
-            | StatusCode::ServiceUnavailable
-            | StatusCode::GatewayTimeout => Err(RetryRequest(status).into()),
+            StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::GATEWAY_TIMEOUT => Err(RetryRequest(status).into()),
             _ => Ok(self),
         }
     }
@@ -150,19 +150,15 @@ impl<'conf> GitHubApi<'conf> {
             Cow::Borrowed(url)
         };
 
-        let mut req = self.client.request(method, url.as_ref());
-        req.header(header::Authorization(format!(
-            "token {}",
-            self.config.github_token
-        )));
-        req.header(header::UserAgent::new(USER_AGENT));
-        req
+        self.client.request(method, url.as_ref())
+            .header(header::AUTHORIZATION, format!("token {}", self.config.github_token))
+            .header(header::USER_AGENT, USER_AGENT)
     }
 
     fn graphql<T: DeserializeOwned, V: Serialize>(&self, query: &str, variables: V) -> Fallible<T> {
         self.retry(|| {
             let resp: GraphResponse<T> = self
-                .build_request(Method::Post, "graphql")
+                .build_request(Method::POST, "graphql")
                 .json(&json!({
                     "query": query,
                     "variables": variables,
@@ -192,7 +188,7 @@ impl<'conf> GitHubApi<'conf> {
             } else if let Some(message) = resp.message {
                 if message.contains("abuse") {
                     warn!("triggered GitHub abuse detection systems");
-                    Err(RetryRequest(StatusCode::TooManyRequests).into())
+                    Err(RetryRequest(StatusCode::TOO_MANY_REQUESTS).into())
                 } else {
                     Err(err_msg(message)
                         .context("GitHub GraphQL call failed")
@@ -207,18 +203,18 @@ impl<'conf> GitHubApi<'conf> {
     pub fn scrape_repositories(&self, since: usize) -> Fallible<Vec<Option<RestRepository>>> {
         self.retry(|| {
             let mut resp = self
-                .build_request(Method::Get, &format!("repositories?since={}", since))
+                .build_request(Method::GET, &format!("repositories?since={}", since))
                 .send()?
                 .handle_errors()?;
 
             let status = resp.status();
-            if status == StatusCode::Ok {
+            if status == StatusCode::OK {
                 Ok(resp.json()?)
             } else {
                 let error: GitHubError = resp.json()?;
                 if error.message.contains("abuse") {
                     warn!("triggered GitHub abuse detection systems");
-                    Err(RetryRequest(StatusCode::TooManyRequests).into())
+                    Err(RetryRequest(StatusCode::TOO_MANY_REQUESTS).into())
                 } else {
                     Err(err_msg(error.message)
                         .context(format!(
@@ -262,12 +258,12 @@ impl<'conf> GitHubApi<'conf> {
 
         self.retry(|| {
             let resp = self
-                .build_request(Method::Get, &url)
+                .build_request(Method::GET, &url)
                 .send()?
                 .handle_errors()?;
             match resp.status() {
-                StatusCode::Ok => Ok(true),
-                StatusCode::NotFound => Ok(false),
+                StatusCode::OK => Ok(true),
+                StatusCode::NOT_FOUND => Ok(false),
                 status => Err(
                     err_msg(format!("GitHub API returned status code {}", status))
                         .context(format!(
