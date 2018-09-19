@@ -11,16 +11,24 @@ branches:
 
 matrix:
   include:
+    # Lint and test on branch pushes and PRs
     - env: TASK=lint
       rust: stable
-
-    # Tests on all the channels
+      if: type != cron
     - env: TASK=test
       rust: stable
+      if: type != cron
     - env: TASK=test
       rust: beta
+      if: type != cron
     - env: TASK=test
       rust: nightly
+      if: type != cron
+
+    # Update the list on crons
+    - env: TASK=update
+      rust: stable
+      if: type = cron
 
   # Don't block CI if a nightly is faulty
   fast_finish: true
@@ -38,7 +46,7 @@ script: |
       cargo fmt -- --check && cargo clippy
   elif [[ $TASK = "test" ]]; then
     cargo build --release && cargo test --release
-  else
+  elif [[ $TASK = "update" ]]; then
     ./ci-update.sh
   fi
 
