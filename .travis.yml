@@ -12,7 +12,7 @@ branches:
 matrix:
   include:
     - env: TASK=lint
-      rust: beta
+      rust: stable
 
     # Tests on all the channels
     - env: TASK=test

@@ -150,9 +150,12 @@ impl<'conf> GitHubApi<'conf> {
             Cow::Borrowed(url)
         };
 
-        self.client.request(method, url.as_ref())
-            .header(header::AUTHORIZATION, format!("token {}", self.config.github_token))
-            .header(header::USER_AGENT, USER_AGENT)
+        self.client
+            .request(method, url.as_ref())
+            .header(
+                header::AUTHORIZATION,
+                format!("token {}", self.config.github_token),
+            ).header(header::USER_AGENT, USER_AGENT)
     }
 
     fn graphql<T: DeserializeOwned, V: Serialize>(&self, query: &str, variables: V) -> Fallible<T> {
