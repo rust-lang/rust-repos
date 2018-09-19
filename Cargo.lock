@@ -694,7 +694,6 @@ dependencies = [
  "ctrlc 3.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure_derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest 0.8.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.79 (registry+https://github.com/rust-lang/crates.io-index)",
