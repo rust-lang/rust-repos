@@ -38,6 +38,8 @@ script: |
       cargo fmt -- --check && cargo clippy
   elif [[ $TASK = "test" ]]; then
     cargo build --release && cargo test --release
+  else
+    ./ci-update.sh
   fi
 
 notifications:
