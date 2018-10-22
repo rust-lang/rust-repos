@@ -214,22 +214,22 @@ dependencies = [
 
 [[package]]
 name = "failure"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "backtrace 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure_derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure_derive 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "failure_derive"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "proc-macro2 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "syn 0.14.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "synstructure 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 0.15.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "synstructure 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -741,7 +741,7 @@ dependencies = [
  "csv 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ctrlc 3.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "failure 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -872,16 +872,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "syn"
-version = "0.14.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "proc-macro2 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "quote 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "unicode-xid 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "syn"
 version = "0.15.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
@@ -892,12 +882,12 @@ dependencies = [
 
 [[package]]
 name = "synstructure"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "proc-macro2 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "syn 0.14.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 0.15.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-xid 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1233,8 +1223,8 @@ dependencies = [
 "checksum dtoa 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "6d301140eb411af13d3115f9a562c85cc6b541ade9dfa314132244aaee7489dd"
 "checksum encoding_rs 0.8.6 (registry+https://github.com/rust-lang/crates.io-index)" = "2a91912d6f37c6a8fef8a2316a862542d036f13c923ad518b5aca7bcaac7544c"
 "checksum env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)" = "15b0a4d2e39f8420210be8b27eeda28029729e2fd4291019455016c348240c38"
-"checksum failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7efb22686e4a466b1ec1a15c2898f91fa9cb340452496dca654032de20ff95b9"
-"checksum failure_derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "946d0e98a50d9831f5d589038d2ca7f8f455b1c21028c0db0e84116a12696426"
+"checksum failure 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "6dd377bcc1b1b7ce911967e3ec24fa19c3224394ec05b54aa7b083d498341ac7"
+"checksum failure_derive 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "64c2d913fe8ed3b6c6518eedf4538255b989945c14c2a7d5cbff62a5e2120596"
 "checksum fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "2fad85553e09a6f881f739c29f0b00b0f01357c743266d478b68951ce23285f3"
 "checksum foreign-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
 "checksum foreign-types-shared 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
@@ -1308,9 +1298,8 @@ dependencies = [
 "checksum siphasher 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "0b8de496cf83d4ed58b6be86c3a275b8602f6ffe98d3024a869e124147a9a3ac"
 "checksum slab 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fdeff4cd9ecff59ec7e3744cbca73dfe5ac35c2aedb2cfba8a1c715a18912e9d"
 "checksum string 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "00caf261d6f90f588f8450b8e1230fa0d5be49ee6140fdfbcb55335aff350970"
-"checksum syn 0.14.6 (registry+https://github.com/rust-lang/crates.io-index)" = "4e4b5274d4a0a3d2749d5c158dc64d3403e60554dc61194648787ada5212473d"
 "checksum syn 0.15.3 (registry+https://github.com/rust-lang/crates.io-index)" = "e5c1514eb7bb4216fc722b3cd08783d326d7de0d62f6d5e48a774f610bc97cb6"
-"checksum synstructure 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "85bb9b7550d063ea184027c9b8c20ac167cd36d3e06b3a40bceb9d746dc1a7b7"
+"checksum synstructure 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ec37f4fab4bafaf6b5621c1d54e6aa5d4d059a8f84929e87abfdd7f9f04c6db2"
 "checksum tempfile 3.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "55c1195ef8513f3273d55ff59fe5da6940287a0d7a98331254397f464833675b"
 "checksum termcolor 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "722426c4a0539da2c4ffd9b419d90ad540b4cff4a053be9069c908d4d07e2836"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"
