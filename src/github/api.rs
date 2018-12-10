@@ -155,7 +155,8 @@ impl<'conf> GitHubApi<'conf> {
             .header(
                 header::AUTHORIZATION,
                 format!("token {}", self.config.github_token),
-            ).header(header::USER_AGENT, USER_AGENT)
+            )
+            .header(header::USER_AGENT, USER_AGENT)
     }
 
     fn graphql<T: DeserializeOwned, V: Serialize>(&self, query: &str, variables: V) -> Fallible<T> {
@@ -165,7 +166,8 @@ impl<'conf> GitHubApi<'conf> {
                 .json(&json!({
                     "query": query,
                     "variables": variables,
-                })).send()?
+                }))
+                .send()?
                 .handle_errors()?
                 .json()?;
 
@@ -223,10 +225,12 @@ impl<'conf> GitHubApi<'conf> {
                         .context(format!(
                             "GitHub API call failed with status code: {}",
                             status
-                        )).context(format!(
+                        ))
+                        .context(format!(
                             "failed to fetch GitHub repositories since ID {}",
                             since
-                        )).into())
+                        ))
+                        .into())
                 }
             }
         })
@@ -236,8 +240,8 @@ impl<'conf> GitHubApi<'conf> {
         let data: GraphRepositories = self.graphql(
             GRAPHQL_QUERY_REPOSITORIES,
             json!({
-            "ids": node_ids,
-        }),
+                "ids": node_ids,
+            }),
         )?;
 
         assert!(
@@ -272,7 +276,8 @@ impl<'conf> GitHubApi<'conf> {
                         .context(format!(
                             "failed to fetch file {} from repo {}",
                             path, repo.name_with_owner,
-                        )).into(),
+                        ))
+                        .into(),
                 ),
             }
         })
