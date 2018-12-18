@@ -110,7 +110,7 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
 
                     if to_load.len() == 100 {
                         let to_load_now = to_load.clone();
-                        scope.spawn(|| wrap_thread(|| load_thread(&gh, data, to_load_now)));
+                        scope.spawn(|_| wrap_thread(|| load_thread(&gh, data, to_load_now)));
                         to_load.clear();
                     }
                 }
@@ -122,7 +122,7 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
                 // Ensure all the remaining repositories are loaded
                 if !to_load.is_empty() {
                     let to_load_now = to_load.clone();
-                    scope.spawn(|| wrap_thread(|| load_thread(&gh, data, to_load_now)));
+                    scope.spawn(|_| wrap_thread(|| load_thread(&gh, data, to_load_now)));
                 }
 
                 break;
@@ -135,7 +135,7 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
         }
 
         Ok(())
-    });
+    }).unwrap();
 
     info!("finished scraping for GitHub repositories");
     result
