@@ -135,7 +135,8 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
         }
 
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 
     info!("finished scraping for GitHub repositories");
     result
