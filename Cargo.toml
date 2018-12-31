@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Pietro Albini <pietro@pietroalbini.org>"]
 
 [dependencies]
-failure = "0.1.3"
+failure = "0.1.4"
 reqwest = "0.9.5"
 serde = "1.0.83"
 serde_derive = "1.0.83"
