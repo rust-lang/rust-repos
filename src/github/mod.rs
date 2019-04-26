@@ -41,7 +41,7 @@ fn load_thread(api: &GitHubApi, data: &Data, to_load: Vec<String>) -> Fallible<(
     for repo in graph_repos.drain(..) {
         if let Some(repo) = repo {
             let mut found = false;
-            for lang in repo.languages.nodes.iter().filter_map(|l| l.as_ref()) {
+            for lang in repo.languages.nodes.iter().filter_map(Option::as_ref) {
                 if lang.name == WANTED_LANG {
                     found = true;
                     break;
