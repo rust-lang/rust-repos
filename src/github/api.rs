@@ -118,6 +118,14 @@ impl<'conf> GitHubApi<'conf> {
                             wait.as_secs()
                         );
                         retry = true;
+                    } else if let Some(error) = err.downcast_ref::<reqwest::Error>() {
+                        if error.is_timeout() {
+                            warn!(
+                                "API call to GitHub timed out, retrying in {} seconds",
+                                wait.as_secs()
+                            );
+                            retry = true;
+                        }
                     }
 
                     if !retry {
