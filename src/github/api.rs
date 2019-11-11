@@ -126,6 +126,14 @@ impl<'conf> GitHubApi<'conf> {
                             );
                             retry = true;
                         }
+                    } else if let Some(error) = err.downcast_ref::<std::io::Error>() {
+                        if error.kind() == std::io::ErrorKind::ConnectionReset {
+                            warn!(
+                                "connection to the API reset by peer, retrying in {} seconds",
+                                wait.as_secs()
+                            );
+                            retry = true;
+                        }
                     }
 
                     if !retry {
