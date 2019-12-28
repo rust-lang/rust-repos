@@ -29,7 +29,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use utils::wrap_thread;
 
-static WANTED_LANG: &'static str = "Rust";
+static WANTED_LANG: &str = "Rust";
 
 fn load_thread(api: &GitHubApi, data: &Data, to_load: Vec<String>) -> Fallible<()> {
     debug!(
