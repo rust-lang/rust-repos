@@ -26,12 +26,12 @@ IFS=$'\n\t'
 GIT_COMMIT_MESSAGE="Automatic lists update"
 GIT_EMAIL="7378925+lists-updater@users.noreply.github.com"
 GIT_NAME="lists updater"
-GIT_REPO="rust-ops/rust-repos"
+GIT_REPO="rust-lang/rust-repos"
 GIT_BRANCH="master"
 
 
-if [[ -z "${TRAVIS+x}" ]]; then
-    echo "Error: this script is meant to be run on Travis CI."
+if [[ -z "${GITHUB_ACTIONS+x}" ]]; then
+    echo "Error: this script is meant to be run on GitHub Actions."
     exit 1
 fi
 

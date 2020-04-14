@@ -1,0 +1,30 @@
+---
+
+name: Updater
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+
+jobs:
+  github:
+    name: GitHub
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Install Rust (stable)
+        run: |
+          rustup update stable
+          rustup component add rustfmt
+          rustup component add clippy
+
+      - name: Build the updater
+        run: cargo build --release
+
+      - name: Run the updater
+        run: ./ci-update.sh
+        env:
+          HIGHFIVE_GH_TOKEN: "${{ secrets.HIGHFIVE_GH_TOKEN }}"
