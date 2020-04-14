@@ -53,6 +53,15 @@ fn app() -> Fallible<()> {
     let github_token =
         std::env::var("GITHUB_TOKEN").context("failed to get the GitHub API token")?;
 
+    let timeout = if let Ok(var) = std::env::var("RUST_REPOS_TIMEOUT") {
+        Some(
+            var.parse::<u64>()
+                .context("failed to parse RUST_REPOS_TIMEOUT")?,
+        )
+    } else {
+        None
+    };
+
     // Parse CLI arguments
     let args = std::env::args().skip(1).collect::<Vec<String>>();
     if args.is_empty() {
@@ -74,6 +83,7 @@ fn app() -> Fallible<()> {
     let config = Config {
         github_token,
         data_dir,
+        timeout,
     };
 
     let data = data::Data::new(&config);

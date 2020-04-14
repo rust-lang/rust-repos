@@ -84,8 +84,16 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
 
     let result = scope(|scope| {
         let mut last_id = data.get_last_id("github")?.unwrap_or(0);
+        let scrape_start = Instant::now();
 
         loop {
+            if let Some(timeout) = config.timeout {
+                if scrape_start.elapsed() >= Duration::from_secs(timeout) {
+                    info!("timeout reached, stopping the scraping loop");
+                    break;
+                }
+            }
+
             // Wait 2 minutes if GitHub is slowing us down
             if gh.should_slow_down() {
                 warn!("slowing down the scraping (2 minutes pause)");

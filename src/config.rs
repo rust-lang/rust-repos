@@ -23,4 +23,5 @@ use std::path::PathBuf;
 pub struct Config {
     pub github_token: String,
     pub data_dir: PathBuf,
+    pub timeout: Option<u64>,
 }
