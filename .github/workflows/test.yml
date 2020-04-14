@@ -1,10 +1,11 @@
 ---
 
+name: Test
 on: [push, pull_request]
 
 jobs:
-  ci:
-    name: CI
+  test:
+    name: Test
     runs-on: ubuntu-latest
 
     steps:
