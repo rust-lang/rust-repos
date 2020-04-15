@@ -28,4 +28,4 @@ jobs:
         run: ./ci-update.sh
         env:
           HIGHFIVE_GH_TOKEN: "${{ secrets.HIGHFIVE_GH_TOKEN }}"
-          RUST_REPOS_TIMEOUT: 7200  # 2 hours
+          RUST_REPOS_TIMEOUT: 5400  # 1h30m
