@@ -36,13 +36,8 @@ if [[ -z "${GITHUB_ACTIONS+x}" ]]; then
 fi
 
 
-if [[ -z "${HIGHFIVE_GH_TOKEN+x}" ]]; then
+if [[ -z "${HIGHFIVE_GH_TOKEN}" ]]; then
     echo "Error: the \$HIGHFIVE_GH_TOKEN environment variable is not set!"
-    exit 1
-fi
-
-if [[ -z "${GITHUB_TOKEN+x}" ]]; then
-    echo "Error: the \$GITHUB_TOKEN environment variable is not set!"
     exit 1
 fi
 
@@ -59,5 +54,5 @@ else
         -c "user.name=${GIT_NAME}" \
         -c "user.email=${GIT_EMAIL}" \
         commit -m "${GIT_COMMIT_MESSAGE}"
-    git push "https://x-token:${GITHUB_TOKEN}@github.com/${GIT_REPO}" "${GIT_BRANCH}"
+    git push "https://x-token:${HIGHFIVE_GH_TOKEN}@github.com/${GIT_REPO}" "${GIT_BRANCH}"
 fi
