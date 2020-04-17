@@ -3,8 +3,7 @@
 name: Updater
 on:
   schedule:
-#    - cron: "0 */6 * * *"
-    - cron: "0 0 1 1 0"
+    - cron: "0 */6 * * *"
 
 jobs:
   github:
@@ -29,4 +28,5 @@ jobs:
         run: ./ci-update.sh
         env:
           HIGHFIVE_GH_TOKEN: "${{ secrets.HIGHFIVE_GH_TOKEN }}"
+          DEPLOY_KEY: "${{ secrets.DEPLOY_KEY }}"
           RUST_REPOS_TIMEOUT: 3600  # 1 hour

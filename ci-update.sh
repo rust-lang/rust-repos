@@ -35,6 +35,10 @@ if [[ -z "${GITHUB_ACTIONS+x}" ]]; then
     exit 1
 fi
 
+if [[ -z "${DEPLOY_KEY+x}" ]]; then
+    echo "Error: the \$DEPLOY_KEY environment variable is not set!"
+    exit 1
+fi
 
 if [[ -z "${HIGHFIVE_GH_TOKEN}" ]]; then
     echo "Error: the \$HIGHFIVE_GH_TOKEN environment variable is not set!"
@@ -48,11 +52,16 @@ GITHUB_TOKEN="${HIGHFIVE_GH_TOKEN}" cargo run --release -- data
 if git diff --quiet data/; then
     echo "No changes to commit."
 else
+    # Configure the deploy key on the local system
+    mkdir -p ~/.ssh
+    echo "${DEPLOY_KEY}" | base64 -d > ~/.ssh/id_rsa
+    chmod 0600 ~/.ssh/id_rsa
+
     git status
     git add data/
     git -c "commit.gpgsign=false" \
         -c "user.name=${GIT_NAME}" \
         -c "user.email=${GIT_EMAIL}" \
         commit -m "${GIT_COMMIT_MESSAGE}"
-    git push "https://x-token:${HIGHFIVE_GH_TOKEN}@github.com/${GIT_REPO}" "${GIT_BRANCH}"
+    git push "git@github.com:${GIT_REPO}" "${GIT_BRANCH}"
 fi
