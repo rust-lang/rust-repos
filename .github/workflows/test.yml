@@ -1,7 +1,12 @@
 ---
 
 name: Test
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    paths:
+      # Avoid running CI when the only changes were in the `data/` directory
+      - "!data/**"
 
 jobs:
   test:
