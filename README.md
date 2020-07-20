@@ -1,8 +1,8 @@
 # Rust repositories list
 
-This repository contains a list of all the public GitHub repos with source code
-written in the [Rust programming language][rust]. This repositories contains
-both the source code for the scraper and the scraped list.
+This repository contains a scraped list of all the public GitHub repos with source code
+written in the [Rust programming language][rust]. The source code for the scraper is
+also included.
 
 Everything in this repository, unless otherwise specified, is released under
 the MIT license.
