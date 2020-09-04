@@ -1,7 +1,11 @@
 ---
 
 name: Test
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - 'data/**'
+  pull_request:
 
 jobs:
   test:
