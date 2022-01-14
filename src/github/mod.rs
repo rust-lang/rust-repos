@@ -38,35 +38,33 @@ fn load_thread(api: &GitHubApi, data: &Data, to_load: Vec<String>) -> Fallible<(
     );
 
     let mut graph_repos = api.load_repositories(&to_load)?;
-    for repo in graph_repos.drain(..) {
-        if let Some(repo) = repo {
-            let mut found = false;
-            for lang in repo.languages.nodes.iter().filter_map(Option::as_ref) {
-                if lang.name == WANTED_LANG {
-                    found = true;
-                    break;
-                }
+    for repo in graph_repos.drain(..).flatten() {
+        let mut found = false;
+        for lang in repo.languages.nodes.iter().filter_map(Option::as_ref) {
+            if lang.name == WANTED_LANG {
+                found = true;
+                break;
             }
+        }
 
-            if found {
-                let has_cargo_toml = api.file_exists(&repo, "Cargo.toml")?;
-                let has_cargo_lock = api.file_exists(&repo, "Cargo.lock")?;
+        if found {
+            let has_cargo_toml = api.file_exists(&repo, "Cargo.toml")?;
+            let has_cargo_lock = api.file_exists(&repo, "Cargo.lock")?;
 
-                data.store_repo(
-                    "github",
-                    Repo {
-                        id: repo.id,
-                        name: repo.name_with_owner.clone(),
-                        has_cargo_toml,
-                        has_cargo_lock,
-                    },
-                )?;
+            data.store_repo(
+                "github",
+                Repo {
+                    id: repo.id,
+                    name: repo.name_with_owner.clone(),
+                    has_cargo_toml,
+                    has_cargo_lock,
+                },
+            )?;
 
-                info!(
-                    "found {}: Cargo.toml = {:?}, Cargo.lock = {:?}",
-                    repo.name_with_owner, has_cargo_toml, has_cargo_lock,
-                );
-            }
+            info!(
+                "found {}: Cargo.toml = {:?}, Cargo.lock = {:?}",
+                repo.name_with_owner, has_cargo_toml, has_cargo_lock,
+            );
         }
     }
 
@@ -107,20 +105,18 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
             // Load all the non-fork repositories in the to_load vector
             let mut repos = gh.scrape_repositories(last_id)?;
             let finished = repos.len() < 100 || should_stop.load(Ordering::SeqCst);
-            for repo in repos.drain(..) {
-                if let Some(repo) = repo {
-                    last_id = repo.id;
-                    if repo.fork {
-                        continue;
-                    }
+            for repo in repos.drain(..).flatten() {
+                last_id = repo.id;
+                if repo.fork {
+                    continue;
+                }
 
-                    to_load.push(repo.node_id);
+                to_load.push(repo.node_id);
 
-                    if to_load.len() == 100 {
-                        let to_load_now = to_load.clone();
-                        scope.spawn(|_| wrap_thread(|| load_thread(&gh, data, to_load_now)));
-                        to_load.clear();
-                    }
+                if to_load.len() == 100 {
+                    let to_load_now = to_load.clone();
+                    scope.spawn(|_| wrap_thread(|| load_thread(&gh, data, to_load_now)));
+                    to_load.clear();
                 }
             }
 
