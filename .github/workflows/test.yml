@@ -24,7 +24,7 @@ jobs:
           rustup component add clippy
 
       - name: Check formatting
-        run: cargo fmt -- --check
+        run: cargo fmt --check
 
       - name: Check Clippy
         run: cargo clippy -- -Dwarnings
