@@ -20,7 +20,8 @@
 
 use config::Config;
 use prelude::*;
-use reqwest::{header, Client, Method, RequestBuilder, Response, StatusCode};
+use reqwest::blocking::{Client, RequestBuilder, Response};
+use reqwest::{header, Method, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Cow;
 use std::sync::{
@@ -223,7 +224,7 @@ impl<'conf> GitHubApi<'conf> {
 
     pub fn scrape_repositories(&self, since: usize) -> Fallible<Vec<Option<RestRepository>>> {
         self.retry(|| {
-            let mut resp = self
+            let resp = self
                 .build_request(Method::GET, &format!("repositories?since={}", since))
                 .send()?
                 .handle_errors()?;
