@@ -107,7 +107,7 @@ fn main() {
     let mut logger = env_logger::Builder::new();
     logger.filter_module("rust_repos", log::LevelFilter::Info);
     if let Ok(content) = std::env::var("RUST_LOG") {
-        logger.parse(&content);
+        logger.parse_filters(&content);
     }
     logger.init();
 
