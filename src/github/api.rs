@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use config::Config;
-use prelude::*;
+use crate::config::Config;
+use crate::prelude::*;
 use reqwest::blocking::{Client, RequestBuilder, Response};
 use reqwest::{header, Method, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};

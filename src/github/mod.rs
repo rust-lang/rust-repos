@@ -20,14 +20,14 @@
 
 mod api;
 
-use config::Config;
+use crate::config::Config;
 use crossbeam_utils::thread::scope;
-use data::{Data, Repo};
-use github::api::GitHubApi;
-use prelude::*;
+use crate::data::{Data, Repo};
+use crate::github::api::GitHubApi;
+use crate::prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
-use utils::wrap_thread;
+use crate::utils::wrap_thread;
 
 static WANTED_LANG: &str = "Rust";
 

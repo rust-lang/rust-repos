@@ -1,5 +1,6 @@
 [package]
 name = "rust-repos"
+edition = "2021"
 version = "0.1.0"
 authors = ["Pietro Albini <pietro@pietroalbini.org>"]
 

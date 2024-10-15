@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use prelude::*;
+use crate::prelude::*;
 
 pub fn log_error(err: &Error) {
     error!("{}", err);
