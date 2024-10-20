@@ -1,111 +1,104 @@
-// Copyright (c) 2018 Pietro Albini <pietro@pietroalbini.org>
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy of
-// this software and associated documentation files (the "Software"), to deal in
-// the Software without restriction, including without limitation the rights to
-// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-// of the Software, and to permit persons to whom the Software is furnished to do
-// so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
+use api::Github;
+use tokio::{
+    signal::ctrl_c,
+    task::JoinSet,
+    time::{sleep, Instant},
+};
+use tracing::{debug, info, warn};
+
+use crate::{
+    config::Config,
+    data::{Data, Forge},
+};
 
 mod api;
 
-use crate::config::Config;
-use crossbeam_utils::thread::scope;
-use crate::data::{Data, Repo};
-use crate::github::api::GitHubApi;
-use crate::prelude::*;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
-use crate::utils::wrap_thread;
+#[derive(Debug, Clone)]
+pub struct Scraper {
+    gh: Arc<Github>,
+    data: Data,
+    finished: Arc<AtomicBool>,
+}
 
-static WANTED_LANG: &str = "Rust";
+impl Scraper {
+    pub fn new(config: Config, data: Data) -> Self {
+        let gh = Github::new(config);
 
-fn load_thread(api: &GitHubApi, data: &Data, to_load: Vec<String>) -> Fallible<()> {
-    debug!(
-        "collected {} non-fork repositories, loading them",
-        to_load.len()
-    );
+        let finished = Arc::new(AtomicBool::new(false));
+        let f2 = finished.clone();
 
-    let mut graph_repos = api.load_repositories(&to_load)?;
-    for repo in graph_repos.drain(..).flatten() {
-        let mut found = false;
-        for lang in repo.languages.nodes.iter().filter_map(Option::as_ref) {
-            if lang.name == WANTED_LANG {
-                found = true;
-                break;
-            }
-        }
+        tokio::spawn(async move {
+            ctrl_c().await.expect("Failed to install Ctrl+C Handler");
+            warn!("Ctrl+C received, stopping...");
+            f2.store(true, Ordering::SeqCst);
+        });
 
-        if found {
-            let has_cargo_toml = api.file_exists(&repo, "Cargo.toml")?;
-            let has_cargo_lock = api.file_exists(&repo, "Cargo.lock")?;
-
-            data.store_repo(
-                "github",
-                Repo {
-                    id: repo.id,
-                    name: repo.name_with_owner.clone(),
-                    has_cargo_toml,
-                    has_cargo_lock,
-                },
-            )?;
-
-            info!(
-                "found {}: Cargo.toml = {:?}, Cargo.lock = {:?}",
-                repo.name_with_owner, has_cargo_toml, has_cargo_lock,
-            );
+        Self {
+            gh: Arc::new(gh),
+            data,
+            finished,
         }
     }
 
-    // Applease Clippy
-    ::std::mem::drop(to_load);
+    async fn load_repositories(&self, repos: Vec<String>) -> color_eyre::Result<()> {
+        debug!("Loading {} repos", repos.len());
 
-    Ok(())
-}
+        let mut graph_repos = self.gh.load_repositories(&repos).await?;
+        for repo in graph_repos.drain(..) {
+            if repo
+                .languages
+                .nodes
+                .iter()
+                .filter_map(Option::as_ref)
+                .any(|el| el.name == "Rust")
+            {
+                let mut repo = repo.to_repo(false, false);
+                let files = self.gh.tree(&repo, false).await;
+                match files {
+                    Ok(tree) => {
+                        for node in tree.tree {
+                            if node.path == "Cargo.toml" {
+                                repo.has_cargo_toml = true;
+                            } else if node.path == "Cargo.lock" {
+                                repo.has_cargo_lock = true;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Could not get tree for {}, error: {e:?}", repo.name);
+                    }
+                }
 
-pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallible<()> {
-    info!("started scraping for GitHub repositories");
+                self.data.store_repo(Forge::Github, repo).await;
+            }
+        }
 
-    let gh = api::GitHubApi::new(config);
-    let mut to_load = Vec::with_capacity(100);
+        Ok(())
+    }
 
-    let result = scope(|scope| {
-        let mut last_id = data.get_last_id("github")?.unwrap_or(0);
-        let scrape_start = Instant::now();
+    pub async fn scrape(&self) -> color_eyre::Result<()> {
+        let start = Instant::now();
+
+        let mut to_load = Vec::with_capacity(100);
+
+        let mut last_id = self.data.get_last_id(Forge::Github);
 
         loop {
-            if let Some(timeout) = config.timeout {
-                if scrape_start.elapsed() >= Duration::from_secs(timeout) {
-                    info!("timeout reached, stopping the scraping loop");
-                    break;
-                }
-            }
+            let start_loop = Instant::now();
+            // TODO check timeout
 
-            // Wait 2 minutes if GitHub is slowing us down
-            if gh.should_slow_down() {
-                warn!("slowing down the scraping (2 minutes pause)");
-                ::std::thread::sleep(Duration::from_secs(120));
-            }
+            let mut repos = self.gh.scrape_repositories(last_id).await?;
+            let mut js = JoinSet::new();
 
-            let start = Instant::now();
-
-            debug!("scraping 100 repositories from the REST API");
-
-            // Load all the non-fork repositories in the to_load vector
-            let mut repos = gh.scrape_repositories(last_id)?;
-            let finished = repos.len() < 100 || should_stop.load(Ordering::SeqCst);
-            for repo in repos.drain(..).flatten() {
+            for repo in repos.drain(..) {
                 last_id = repo.id;
                 if repo.fork {
                     continue;
@@ -115,33 +108,35 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
 
                 if to_load.len() == 100 {
                     let to_load_now = to_load.clone();
-                    scope.spawn(|_| wrap_thread(|| load_thread(&gh, data, to_load_now)));
+                    let this = self.clone();
+                    js.spawn(async move { this.load_repositories(to_load_now).await });
                     to_load.clear();
                 }
             }
 
-            data.set_last_id("github", last_id)?;
+            self.data.set_last_id(Forge::Github, last_id).await?;
 
-            if finished {
-                // Ensure all the remaining repositories are loaded
-                if !to_load.is_empty() {
-                    let to_load_now = to_load.clone();
-                    scope.spawn(|_| wrap_thread(|| load_thread(&gh, data, to_load_now)));
+            while let Some(res) = js.join_next().await {
+                let res = res.unwrap();
+                if let Err(e) = res {
+                    warn!("Failed scraping repo: {:?}", e);
                 }
+            }
 
+            if self.finished.load(Ordering::SeqCst) {
+                if !to_load.is_empty() {
+                    self.load_repositories(to_load).await?;
+                }
                 break;
             }
 
-            // Avoid hammering GitHub too much
-            if let Some(sleep) = Duration::from_secs(1).checked_sub(start.elapsed()) {
-                ::std::thread::sleep(sleep);
+            if let Some(time) = Duration::from_millis(250).checked_sub(start_loop.elapsed()) {
+                sleep(time).await;
             }
         }
 
-        Ok(())
-    })
-    .unwrap();
+        info!("Took {} seconds", start.elapsed().as_secs());
 
-    info!("finished scraping for GitHub repositories");
-    result
+        Ok(())
+    }
 }
