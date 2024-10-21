@@ -78,7 +78,7 @@ pub struct GraphRepository {
 }
 
 impl GraphRepository {
-    pub fn to_repo(self, has_cargo_toml: bool, has_cargo_lock: bool) -> Repo {
+    pub fn into_repo(self, has_cargo_toml: bool, has_cargo_lock: bool) -> Repo {
         Repo {
             id: self.id,
             name: self.name_with_owner,

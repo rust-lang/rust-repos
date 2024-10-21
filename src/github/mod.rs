@@ -60,7 +60,7 @@ impl Scraper {
                 .filter_map(Option::as_ref)
                 .any(|el| el.name == "Rust")
             {
-                let mut repo = repo.to_repo(false, false);
+                let mut repo = repo.into_repo(false, false);
                 let files = self.gh.tree(&repo, false).await;
                 match files {
                     Ok(tree) => {
