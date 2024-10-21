@@ -25,3 +25,5 @@ color-eyre = "0.6.3"
 tracing = "0.1.40"
 enum-map = { version = "2.7.3", features = ["serde"] }
 thiserror = "1"
+
+console-subscriber = "0.4"

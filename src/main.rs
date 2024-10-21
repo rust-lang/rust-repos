@@ -21,7 +21,7 @@ fn get_tokens_from_env() -> Vec<String> {
     if let Some(ts) = env_tokens {
         let ts = ts.split(',');
         for t in ts {
-            tokens.push(t.to_string())
+            tokens.push(t.to_string());
         }
     }
 
@@ -35,6 +35,8 @@ async fn main() -> color_eyre::Result<()> {
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
         .init();
+
+    // console_subscriber::init();
 
     let github_token = get_tokens_from_env();
 

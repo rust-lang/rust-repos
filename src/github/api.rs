@@ -12,7 +12,7 @@ use serde_derive::Deserialize;
 use serde_json::json;
 use thiserror::Error;
 use tokio::{task::yield_now, time::sleep};
-use tracing::{debug, error, warn};
+use tracing::{error, trace, warn};
 
 use crate::{config::Config, data::Repo};
 
@@ -25,11 +25,12 @@ pub struct Github {
     current_token_index: AtomicUsize,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct GitHubError {
     message: String,
-    #[serde(rename = "type")]
-    type_: Option<String>,
+
+    #[allow(unused)]
+    r#type: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -45,6 +46,7 @@ pub struct GithubTree {
 #[derive(Debug, Deserialize)]
 pub struct RestRepository {
     pub id: usize,
+    #[allow(unused, reason = "Useful for debugging, if something does go wrong")]
     pub full_name: String,
     pub node_id: String,
     pub fork: bool,
@@ -98,11 +100,6 @@ pub struct GraphLanguage {
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct GraphRef {
-    pub name: String,
-}
-
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("reqwest error occurred {0:?}")]
@@ -110,13 +107,16 @@ pub enum Error {
     #[error("rate limit hit {0}")]
     RateLimit(StatusCode),
     #[error("other http error: {0}")]
-    HttpError(StatusCode),
+    HttpStatus(StatusCode),
 
     #[error("Response did not contain requested data")]
     EmptyData,
     #[error("IO Error {0}")]
     Io(#[from] std::io::Error),
 }
+
+/// 100 is the max results per page of the GH API
+pub(crate) const N: usize = 100;
 
 const GRAPHQL_QUERY_REPOSITORIES: &str = "
 query($ids: [ID!]!) {
@@ -153,12 +153,12 @@ impl Github {
     }
 
     fn build_request(&self, method: Method, url: &str) -> RequestBuilder {
-        let url = if !url.starts_with("https://") {
-            Cow::from(format!("https://api.github.com/{}", url))
-        } else {
+        let url = if url.starts_with("https://") {
             Cow::from(url)
+        } else {
+            Cow::from(format!("https://api.github.com/{url}"))
         };
-        debug!("Sending request to {url}");
+        trace!("Sending request to {url}");
         self.client
             .request(method, url.as_ref())
             .header(header::AUTHORIZATION, format!("token {}", self.get_token()))
@@ -181,6 +181,10 @@ impl Github {
             .await?;
 
         let data: GraphResponse<T> = handle_response_json(resp).await?;
+
+        if let Some(errs) = data.errors {
+            warn!("GraphQL Errors: {:?}, \n {:#?}", data.message, errs);
+        }
 
         data.data.ok_or_else(|| Error::EmptyData)
     }
@@ -213,7 +217,7 @@ impl Github {
     pub async fn tree(&self, repo: &Repo, recursive: bool) -> Result<GithubTree, Error> {
         let mut url = format!("repos/{}/git/trees/HEAD", repo.name);
         if recursive {
-            url = format!("{url}?recursive=1")
+            url = format!("{url}?recursive=1");
         }
 
         self.retry(|| async {
@@ -230,13 +234,20 @@ impl Github {
         let output: Vec<RestRepository> = self
             .retry(|| async {
                 let resp = self
-                    .build_request(Method::GET, &format!("repositories?since={}", since))
+                    .build_request(
+                        Method::GET,
+                        &format!("repositories?since={since}&per_page{N}"),
+                    )
                     .send()
                     .await?;
 
                 handle_response_json(resp).await
             })
             .await?;
+
+        if output.len() != N {
+            warn!("Github API returned {} instead of {N} repos", output.len());
+        }
 
         Ok(output)
     }
@@ -265,7 +276,7 @@ impl Github {
                         return Err(Error::Reqwest(reqwest_error));
                     }
                 }
-                Err(err @ Error::HttpError(_)) => return Err(err),
+                Err(err @ Error::HttpStatus(_)) => return Err(err),
                 Err(Error::RateLimit(_)) => {
                     let mut wait = false;
                     self.current_token_index
@@ -288,7 +299,7 @@ impl Github {
             }
 
             // Yield
-            yield_now().await
+            yield_now().await;
         }
     }
 }
@@ -314,9 +325,9 @@ async fn handle_response(resp: Response) -> Result<Response, Error> {
             Err(Error::RateLimit(status))
         } else {
             warn!("Http Error ({}): {}", status.as_u16(), error.message);
-            Err(Error::HttpError(status))
+            Err(Error::HttpStatus(status))
         }
     } else {
-        Err(Error::HttpError(status))
+        Err(Error::HttpStatus(status))
     }
 }

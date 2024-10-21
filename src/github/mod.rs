@@ -49,9 +49,8 @@ impl Scraper {
     }
 
     async fn load_repositories(&self, repos: Vec<String>) -> color_eyre::Result<()> {
-        debug!("Loading {} repos", repos.len());
-
         let mut graph_repos = self.gh.load_repositories(&repos).await?;
+        let mut js = JoinSet::new();
         for repo in graph_repos.drain(..) {
             if repo
                 .languages
@@ -60,26 +59,31 @@ impl Scraper {
                 .filter_map(Option::as_ref)
                 .any(|el| el.name == "Rust")
             {
-                let mut repo = repo.into_repo(false, false);
-                let files = self.gh.tree(&repo, false).await;
-                match files {
-                    Ok(tree) => {
-                        for node in tree.tree {
-                            if node.path == "Cargo.toml" {
-                                repo.has_cargo_toml = true;
-                            } else if node.path == "Cargo.lock" {
-                                repo.has_cargo_lock = true;
+                let this = self.clone();
+                js.spawn(async move {
+                    let mut repo = repo.into_repo(false, false);
+                    let files = this.gh.tree(&repo, false).await;
+                    match files {
+                        Ok(tree) => {
+                            for node in tree.tree {
+                                if node.path == "Cargo.toml" {
+                                    repo.has_cargo_toml = true;
+                                } else if node.path == "Cargo.lock" {
+                                    repo.has_cargo_lock = true;
+                                }
                             }
                         }
+                        Err(e) => {
+                            warn!("Could not get tree for {}, error: {e:?}", repo.name);
+                        }
                     }
-                    Err(e) => {
-                        warn!("Could not get tree for {}, error: {e:?}", repo.name);
-                    }
-                }
 
-                self.data.store_repo(Forge::Github, repo).await;
+                    this.data.store_repo(Forge::Github, repo).await;
+                });
             }
         }
+
+        js.join_all().await;
 
         Ok(())
     }
@@ -87,7 +91,7 @@ impl Scraper {
     pub async fn scrape(&self) -> color_eyre::Result<()> {
         let start = Instant::now();
 
-        let mut to_load = Vec::with_capacity(100);
+        let mut to_load = Vec::with_capacity(api::N);
 
         let mut last_id = self.data.get_last_id(Forge::Github);
 
@@ -106,7 +110,7 @@ impl Scraper {
 
                 to_load.push(repo.node_id);
 
-                if to_load.len() == 100 {
+                if to_load.len() == api::N {
                     let to_load_now = to_load.clone();
                     let this = self.clone();
                     js.spawn(async move { this.load_repositories(to_load_now).await });
@@ -116,8 +120,7 @@ impl Scraper {
 
             self.data.set_last_id(Forge::Github, last_id).await?;
 
-            while let Some(res) = js.join_next().await {
-                let res = res.unwrap();
+            for res in js.join_all().await {
                 if let Err(e) = res {
                     warn!("Failed scraping repo: {:?}", e);
                 }
@@ -129,6 +132,8 @@ impl Scraper {
                 }
                 break;
             }
+
+            debug!("Loaded 100 repos in {}ms", start_loop.elapsed().as_millis());
 
             if let Some(time) = Duration::from_millis(250).checked_sub(start_loop.elapsed()) {
                 sleep(time).await;
