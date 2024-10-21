@@ -26,10 +26,12 @@ pub struct Scraper {
     gh: Arc<Github>,
     data: Data,
     finished: Arc<AtomicBool>,
+    timeout: Option<u64>,
 }
 
 impl Scraper {
     pub fn new(config: Config, data: Data) -> Self {
+        let timeout = config.timeout;
         let gh = Github::new(config);
 
         let finished = Arc::new(AtomicBool::new(false));
@@ -45,6 +47,7 @@ impl Scraper {
             gh: Arc::new(gh),
             data,
             finished,
+            timeout,
         }
     }
 
@@ -97,7 +100,12 @@ impl Scraper {
 
         loop {
             let start_loop = Instant::now();
-            // TODO check timeout
+            if let Some(timeout) = self.timeout {
+                if start.elapsed() >= Duration::from_secs(timeout) {
+                    info!("Timeout reached, stopped scraping");
+                    break;
+                }
+            }
 
             let mut repos = self.gh.scrape_repositories(last_id).await?;
             let mut js = JoinSet::new();
