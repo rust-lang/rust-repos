@@ -17,6 +17,7 @@ use std::{
 
 #[derive(Debug, Enum, Serialize, Deserialize, Copy, Clone)]
 pub enum Forge {
+    #[serde(rename = "github")]
     Github,
 }
 
