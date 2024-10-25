@@ -46,7 +46,8 @@ pub struct GithubTree {
 #[derive(Debug, Deserialize)]
 pub struct RestRepository {
     pub id: usize,
-    #[allow(unused, reason = "Useful for debugging, if something does go wrong")]
+    // Useful for debugging, if something does go wrong
+    #[allow(unused)]
     pub full_name: String,
     pub node_id: String,
     pub fork: bool,
@@ -56,6 +57,7 @@ pub struct RestRepository {
 struct GraphResponse<T> {
     data: Option<T>,
     errors: Option<Vec<GitHubError>>,
+    #[allow(unused)]
     message: Option<String>,
 }
 
@@ -183,7 +185,14 @@ impl Github {
         let data: GraphResponse<T> = handle_response_json(resp).await?;
 
         if let Some(errs) = data.errors {
-            warn!("GraphQL Errors: {:?}, \n {:#?}", data.message, errs);
+            let errs: Vec<_> = errs
+                .into_iter()
+                // Some repos on GitHub are just marked as NOT_FOUND, does not seem like our fault
+                .filter(|el| el.r#type.as_deref() != Some("NOT_FOUND"))
+                .collect();
+            if !errs.is_empty() {
+                warn!("GraphQL Errors: \n {:#?}", errs);
+            }
         }
 
         data.data.ok_or_else(|| Error::EmptyData)
