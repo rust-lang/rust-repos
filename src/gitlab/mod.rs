@@ -23,6 +23,7 @@ query ListRustRepos($after: String) {
     nodes {
       id
       name
+      fullPath
       path
       webUrl
     }
@@ -37,9 +38,11 @@ struct PageInfo {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Project {
     id: String,
     name: String,
+    full_path: String,
     path: String,
     webUrl: String,
 }
@@ -91,13 +94,21 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
             break;
         }
 
-        let data = resp.data.expect("No data returned");
-        println!("{:?}", data);
-        let projects = data.projects;
+        let gitlab_data = resp.data.expect("No data returned");
+        println!("{:?}", gitlab_data);
+        let projects = gitlab_data.projects;
 
-        let mut last_id = data.get_last_id("gitlab")?.unwrap_or_default();
         for project in projects.nodes {
             println!("{:?}", project);
+            data.store_repo(
+                "gitlab",
+                Repo {
+                    id: project.id.clone(),
+                    name: project.full_path.to_string(),
+                    has_cargo_toml: true, // TODO set
+                    has_cargo_lock: true,
+                },
+            )?;
         }
 
         if !projects.pageInfo.hasNextPage {
