@@ -32,9 +32,10 @@ query ListRustRepos($after: String) {
 "#;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PageInfo {
-    hasNextPage: bool,
-    endCursor: Option<String>,
+    has_next_page: bool,
+    end_cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,17 +45,13 @@ struct Project {
     name: String,
     full_path: String,
     path: String,
-    webUrl: String,
+    web_url: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct Namespace {
-    fullPath: String,
-}
-
-#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Projects {
-    pageInfo: PageInfo,
+    page_info: PageInfo,
     nodes: Vec<Project>,
 }
 
@@ -111,12 +108,12 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
             )?;
         }
 
-        if !projects.pageInfo.hasNextPage {
+        if !projects.page_info.has_next_page {
             println!("No more pages");
             break;
         }
 
-        after = projects.pageInfo.endCursor;
+        after = projects.page_info.end_cursor;
         page += 1;
     }
 
