@@ -36,6 +36,7 @@ extern crate serde_json;
 mod config;
 mod data;
 mod github;
+mod gitlab;
 mod prelude;
 mod utils;
 
@@ -95,6 +96,7 @@ fn app() -> Fallible<()> {
         stop.store(true, Ordering::SeqCst);
     })?;
 
+    gitlab::scrape(&data, &config, &should_stop)?;
     github::scrape(&data, &config, &should_stop)?;
 
     Ok(())
