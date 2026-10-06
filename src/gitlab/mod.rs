@@ -118,15 +118,17 @@ struct GraphQlResponse {
 pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallible<()> {
     let client = Client::new();
 
-    info!("scraping GitLab endpoint {}", config.gitlab_graphql_endpoint);
+    info!(
+        "scraping GitLab endpoint {}",
+        config.gitlab_graphql_endpoint
+    );
     let mut after: Option<String> = None;
     while !should_stop.load(Ordering::SeqCst) {
         let variables = serde_json::json!({ "after": after });
 
-        let mut request = client.post(&config.gitlab_graphql_endpoint).header(
-            reqwest::header::USER_AGENT,
-            USER_AGENT,
-        );
+        let mut request = client
+            .post(&config.gitlab_graphql_endpoint)
+            .header(reqwest::header::USER_AGENT, USER_AGENT);
         if let Some(token) = &config.gitlab_token {
             request = request.bearer_auth(token);
         }
