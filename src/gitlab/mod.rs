@@ -2,7 +2,6 @@ use config::Config;
 use data::{Data, Repo};
 use prelude::*;
 use reqwest::blocking::Client;
-use serde::Deserialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static USER_AGENT: &str = "rust-repos (https://github.com/rust-ops/rust-repos)";
