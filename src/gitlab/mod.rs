@@ -5,16 +5,15 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-const GITLAB_GRAPHQL_ENDPOINT: &str = "https://gitlab.com/api/graphql";
-
 static USER_AGENT: &str = "rust-repos (https://github.com/rust-ops/rust-repos)";
 
 static GRAPHQL_QUERY_REPOSITORIES: &str = r#"
 query ListRustRepos($after: String) {
   projects(
-    first: 50
+    first: 100
     after: $after
     programmingLanguageName: "Rust"
+    archived: EXCLUDE
   ) {
     pageInfo {
       hasNextPage
@@ -119,27 +118,36 @@ struct GraphQlResponse {
 pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallible<()> {
     let client = Client::new();
 
+    info!("scraping GitLab endpoint {}", config.gitlab_graphql_endpoint);
     let mut after: Option<String> = None;
-    let mut page = 1;
-
     while !should_stop.load(Ordering::SeqCst) {
         let variables = serde_json::json!({ "after": after });
 
-        let resp: GraphQlResponse = client
-            .post(GITLAB_GRAPHQL_ENDPOINT)
+        let mut request = client.post(&config.gitlab_graphql_endpoint).header(
+            reqwest::header::USER_AGENT,
+            USER_AGENT,
+        );
+        if let Some(token) = &config.gitlab_token {
+            request = request.bearer_auth(token);
+        }
+
+        let resp: GraphQlResponse = request
             .json(&serde_json::json!({
                 "query": GRAPHQL_QUERY_REPOSITORIES,
                 "variables": variables
             }))
             .send()?
-            .text()?;
+            .error_for_status()?
+            .json()?;
 
         if let Some(errors) = resp.errors {
             eprintln!("GraphQL errors: {errors:#?}");
             break;
         }
 
-        let gitlab_data = resp.data.expect("No data returned");
+        let gitlab_data = resp
+            .data
+            .ok_or_else(|| err_msg("GitLab GraphQL response did not contain data"))?;
         let projects = gitlab_data.projects;
 
         for project in projects.nodes {
@@ -159,7 +167,6 @@ pub fn scrape(data: &Data, config: &Config, should_stop: &AtomicBool) -> Fallibl
         }
 
         after = projects.page_info.end_cursor;
-        page += 1;
     }
 
     Ok(())
