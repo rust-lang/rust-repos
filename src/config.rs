@@ -22,6 +22,8 @@ use std::path::PathBuf;
 
 pub struct Config {
     pub github_token: String,
+    pub gitlab_token: Option<String>,
+    pub gitlab_graphql_endpoint: String,
     pub data_dir: PathBuf,
     pub timeout: Option<u64>,
 }

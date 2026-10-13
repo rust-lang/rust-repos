@@ -80,7 +80,7 @@ impl Data {
 
         let mut file = BufWriter::new(File::create(&self.state_path)?);
         serde_json::to_writer_pretty(&mut file, &state)?;
-        file.write_all(&[b'\n'])?;
+        file.write_all(b"\n")?;
 
         Ok(result)
     }

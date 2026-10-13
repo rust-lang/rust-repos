@@ -36,6 +36,7 @@ extern crate serde_json;
 mod config;
 mod data;
 mod github;
+mod gitlab;
 mod prelude;
 mod utils;
 
@@ -52,7 +53,11 @@ fn app() -> Fallible<()> {
     // Get the GitHub token from the environment
     let github_token =
         std::env::var("GITHUB_TOKEN").context("failed to get the GitHub API token")?;
-
+    let gitlab_token = std::env::var("GITLAB_TOKEN")
+        .ok()
+        .filter(|token| !token.is_empty());
+    let gitlab_graphql_endpoint = std::env::var("GITLAB_GRAPHQL_ENDPOINT")
+        .unwrap_or_else(|_| "https://gitlab.com/api/graphql".to_owned());
     let timeout = if let Ok(var) = std::env::var("RUST_REPOS_TIMEOUT") {
         Some(
             var.parse::<u64>()
@@ -82,6 +87,8 @@ fn app() -> Fallible<()> {
 
     let config = Config {
         github_token,
+        gitlab_token,
+        gitlab_graphql_endpoint,
         data_dir,
         timeout,
     };
@@ -95,6 +102,7 @@ fn app() -> Fallible<()> {
         stop.store(true, Ordering::SeqCst);
     })?;
 
+    gitlab::scrape(&data, &config, &should_stop)?;
     github::scrape(&data, &config, &should_stop)?;
 
     Ok(())
