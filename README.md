@@ -22,6 +22,10 @@ $ GITHUB_TOKEN=foobar cargo run --release -- data
 The scraper automatically saves its state to disk, so it can be interrupted and
 it will resume where it left. This also allows incremental updates of the list.
 
+GitLab scraping uses the public GitLab GraphQL endpoint by default. Set
+`GITLAB_GRAPHQL_ENDPOINT` to use another GitLab instance, and optionally set
+`GITLAB_TOKEN` to authenticate requests.
+
 ## Using the data
 
 The data is available in the `data/github.csv` file, in CSV format. That file
